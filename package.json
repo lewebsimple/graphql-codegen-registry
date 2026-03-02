@@ -1,0 +1,38 @@
+{
+  "name": "graphql-codegen-registry",
+  "version": "0.0.0",
+  "description": "Type-safe operations registry and validation for GraphQL Codegen.",
+  "homepage": "https://github.com/lewebsimple/graphql-codegen-registry#readme",
+  "bugs": {
+    "url": "https://github.com/lewebsimple/graphql-codegen-registry/issues"
+  },
+  "license": "AGPL-3.0-only",
+  "author": "Pascal Martineau <pascal@lewebsimple.ca>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lewebsimple/graphql-codegen-registry.git"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/preset/index.d.ts",
+      "import": "./dist/preset/index.js"
+    },
+    "./adapters": {
+      "types": "./dist/plugin/index.d.ts",
+      "import": "./dist/plugin/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {},
+  "packageManager": "pnpm@10.30.3"
+}
