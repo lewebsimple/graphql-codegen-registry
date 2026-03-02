@@ -8,7 +8,6 @@ type OperationMeta = {
   name: string;
   kind: OpKind;
   variablesType: string;
-  resultBaseType: string;
   resultType: string;
   documentConst: string;
 };
@@ -32,8 +31,7 @@ export const plugin: PluginFunction = (_schema, documents) => {
       ops.push({
         name,
         kind,
-        variablesType: `${name}Variables`,
-        resultBaseType: `${name}${suffix}`,
+        variablesType: `${name}${suffix}Variables`,
         resultType: `${name}${suffix}Result`,
         documentConst: `${name}Document`,
       });
@@ -41,10 +39,6 @@ export const plugin: PluginFunction = (_schema, documents) => {
   }
 
   const uniqueOps = Array.from(new Map(ops.map((o) => [o.name, o])).values());
-
-  const resultAliases = uniqueOps
-    .map((o) => `export type ${o.resultType} = ${o.resultBaseType};`)
-    .join("\n");
 
   const registryEntries = uniqueOps
     .map(
@@ -66,8 +60,6 @@ export interface OperationEntry<TVariables, TResult, TKind extends "query" | "mu
   result: TResult;
   document: DocumentNode;
 }
-
-${resultAliases}
 
 export type OperationRegistry = {
 ${registryEntries}

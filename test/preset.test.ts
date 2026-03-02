@@ -9,7 +9,7 @@ import plugin from "../src/plugin/index";
 import preset from "../src/preset/index";
 
 describe("preset", () => {
-  it("generates types from a real schema and document", async () => {
+  it("generates registry from a real schema and document", async () => {
     const sdl = /* GraphQL */ `
       type Query {
         user(id: ID!): User
@@ -26,10 +26,14 @@ describe("preset", () => {
     const documents = [
       {
         document: parse(/* GraphQL */ `
+          fragment User on User {
+            id
+            name
+          }
+
           query GetUser($id: ID!) {
             user(id: $id) {
-              id
-              name
+              ...User
             }
           }
         `),
@@ -61,8 +65,14 @@ describe("preset", () => {
 
     console.log(output);
 
+    expect(output).toContain("export type UserFragment");
     expect(output).toContain("export type GetUserQueryVariables");
-    expect(output).toContain("export type GetUserQuery");
+    expect(output).toContain("export type GetUserQueryResult");
     expect(output).toContain("export const GetUserDocument");
+    expect(output).toContain(
+      'GetUser: OperationEntry<GetUserQueryVariables, GetUserQueryResult, "query">;',
+    );
+    expect(output).toContain('GetUser: { kind: "query", document: GetUserDocument }');
+    expect(output).not.toContain("GetUserVariables");
   });
 });
