@@ -36,7 +36,9 @@
     "format": "oxfmt .",
     "lint": "oxlint . --fix",
     "prepare": "husky",
-    "release": "pnpm lint && pnpm build && changelogen --release --push && pnpm publish"
+    "release": "pnpm lint && pnpm test &&pnpm build && changelogen --release --push && pnpm publish",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@graphql-codegen/plugin-helpers": "^6.1.0"
@@ -51,7 +53,8 @@
     "oxfmt": "^0.36.0",
     "oxlint": "^1.51.0",
     "rolldown": "1.0.0-rc.5",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   },
   "peerDependencies": {
     "@graphql-codegen/typescript": "^5.0.0",
