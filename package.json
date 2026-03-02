@@ -41,7 +41,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@graphql-codegen/plugin-helpers": "^6.1.0"
+    "@graphql-codegen/plugin-helpers": "^6.1.0",
+    "es-toolkit": "^1.45.0"
   },
   "devDependencies": {
     "@graphql-codegen/core": "^5.0.0",
