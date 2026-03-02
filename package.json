@@ -21,18 +21,53 @@
   "exports": {
     ".": {
       "types": "./dist/preset/index.d.ts",
-      "import": "./dist/preset/index.js"
+      "default": "./dist/preset/index.js"
     },
-    "./adapters": {
+    "./plugin": {
       "types": "./dist/plugin/index.d.ts",
-      "import": "./dist/plugin/index.js"
+      "default": "./dist/plugin/index.js"
     }
   },
   "publishConfig": {
     "access": "public"
   },
-  "scripts": {},
-  "dependencies": {},
-  "devDependencies": {},
-  "packageManager": "pnpm@10.30.3"
+  "scripts": {
+    "build": "rolldown --config ./rolldown.config.ts && tsc",
+    "format": "oxfmt .",
+    "lint": "oxlint . --fix",
+    "prepare": "husky",
+    "release": "pnpm lint && pnpm build && changelogen --release --push && pnpm publish"
+  },
+  "dependencies": {
+    "@graphql-codegen/plugin-helpers": "^6.1.0"
+  },
+  "devDependencies": {
+    "@graphql-codegen/typescript": "^5.0.8",
+    "@graphql-codegen/typescript-operations": "^5.0.8",
+    "@types/node": "^25.3.3",
+    "changelogen": "^0.6.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.1",
+    "oxfmt": "^0.36.0",
+    "oxlint": "^1.51.0",
+    "rolldown": "1.0.0-rc.5",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "@graphql-codegen/typescript": "^5.0.0",
+    "@graphql-codegen/typescript-operations": "^5.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,json,md}": [
+      "oxlint --fix",
+      "oxfmt"
+    ]
+  },
+  "packageManager": "pnpm@10.30.3",
+  "changelog": {
+    "noAuthors": true,
+    "types": {
+      "chore": false
+    }
+  }
 }

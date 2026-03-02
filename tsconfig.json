@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    /* Modern runtime */
+    "target": "ES2022",
+    "module": "ESNext",
+    /* Bundler-compatible resolution */
+    "moduleResolution": "Bundler",
+    /* Types only */
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    /* Paths */
+    "rootDir": "src",
+    "outDir": "dist",
+    /* Safety */
+    "strict": true,
+    /* Required for bundlers */
+    "isolatedModules": true,
+    /* Quality of life */
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
