@@ -45,8 +45,10 @@
   },
   "devDependencies": {
     "@graphql-codegen/core": "^5.0.0",
+    "@graphql-codegen/typed-document-node": "^6.1.6",
     "@graphql-codegen/typescript": "^5.0.8",
     "@graphql-codegen/typescript-operations": "^5.0.8",
+    "@graphql-typed-document-node/core": "^3.2.0",
     "@types/node": "^25.3.3",
     "changelogen": "^0.6.2",
     "graphql": "^16.13.0",
@@ -59,8 +61,10 @@
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "@graphql-codegen/typescript": "^5.0.0",
-    "@graphql-codegen/typescript-operations": "^5.0.0"
+    "@graphql-codegen/typed-document-node": "^6.1.6",
+    "@graphql-codegen/typescript": "^5.0.8",
+    "@graphql-codegen/typescript-operations": "^5.0.8",
+    "@graphql-typed-document-node/core": "^3.2.0"
   },
   "lint-staged": {
     "*.{ts,json,md}": [

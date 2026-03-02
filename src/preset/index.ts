@@ -6,12 +6,52 @@ const preset: Types.OutputPreset<RegistryConfig> = {
   buildGeneratesSection: async (options) => {
     const plugins: Types.ConfiguredPlugin[] = [
       {
-        typescript: {},
+        typescript: {
+          avoidOptionals: {
+            field: true,
+            object: true,
+            inputValue: false,
+            defaultValue: false,
+          },
+          defaultScalarType: "never",
+          enumsAsConst: true,
+          preResolveTypes: false,
+          strictScalars: true,
+          useTypeImports: true,
+        },
       },
       {
-        "typescript-operations": {},
+        "typescript-operations": {
+          avoidOptionals: {
+            field: true,
+            object: true,
+            inputValue: false,
+            defaultValue: false,
+          },
+          defaultScalarType: "never",
+          enumsAsConst: true,
+          exportFragmentSpreadSubTypes: true,
+          inlineFragmentTypes: "combine",
+          operationResultSuffix: "Result",
+          operationVariablesSuffix: "Variables",
+          preResolveTypes: false,
+          skipTypename: true,
+          strictScalars: true,
+          useTypeImports: true,
+        },
       },
-      { "graphql-codegen-registry/plugin": {} },
+      {
+        "typed-document-node": {
+          documentVariableSuffix: "Document",
+          operationResultSuffix: "Result",
+          operationVariablesSuffix: "Variables",
+          optimizeDocumentNode: true,
+          useTypeImports: true,
+        },
+      },
+      {
+        "graphql-codegen-registry/plugin": {},
+      },
     ];
 
     return [
