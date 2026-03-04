@@ -1,0 +1,5 @@
+schema: ./example/src/schema.graphql
+documents: ./example/src/**/*.gql
+generates:
+  ./example/generated/registry.ts:
+    preset: graphql-codegen-registry

@@ -1,7 +1,7 @@
 {
   "name": "graphql-codegen-registry",
   "version": "0.0.2",
-  "description": "Type-safe operations registry and validation for GraphQL Codegen.",
+  "description": "GraphQL Codegen preset for type-safe operations registry validated with Zod.",
   "homepage": "https://github.com/lewebsimple/graphql-codegen-registry#readme",
   "bugs": {
     "url": "https://github.com/lewebsimple/graphql-codegen-registry/issues"
@@ -20,12 +20,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/preset/index.d.ts",
-      "default": "./dist/preset/index.js"
-    },
-    "./plugin": {
-      "types": "./dist/plugin/index.d.ts",
-      "default": "./dist/plugin/index.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "publishConfig": {
@@ -33,18 +29,20 @@
   },
   "scripts": {
     "build": "rolldown --config ./rolldown.config.ts && tsc",
+    "codegen": "graphql-codegen",
     "format": "oxfmt .",
     "lint": "oxlint . --fix",
     "prepare": "husky",
-    "release": "pnpm lint && pnpm test &&pnpm build && changelogen --release --push && pnpm publish",
+    "release": "pnpm lint && pnpm test && pnpm build && changelogen --release --push && pnpm publish",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@graphql-codegen/plugin-helpers": "^6.1.0",
-    "es-toolkit": "^1.45.0"
+    "es-toolkit": "^1.45.1"
   },
   "devDependencies": {
+    "@graphql-codegen/cli": "^6.1.2",
     "@graphql-codegen/core": "^5.0.0",
     "@graphql-codegen/typed-document-node": "^6.1.6",
     "@graphql-codegen/typescript": "^5.0.8",
@@ -52,20 +50,23 @@
     "@graphql-typed-document-node/core": "^3.2.0",
     "@types/node": "^25.3.3",
     "changelogen": "^0.6.2",
-    "graphql": "^16.13.0",
+    "graphql": "^16.13.1",
     "husky": "^9.1.7",
-    "lint-staged": "^16.3.1",
+    "lint-staged": "^16.3.2",
     "oxfmt": "^0.36.0",
     "oxlint": "^1.51.0",
     "rolldown": "1.0.0-rc.5",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "zod": "^4.3.6"
   },
   "peerDependencies": {
     "@graphql-codegen/typed-document-node": "^6.1.6",
     "@graphql-codegen/typescript": "^5.0.8",
     "@graphql-codegen/typescript-operations": "^5.0.8",
-    "@graphql-typed-document-node/core": "^3.2.0"
+    "@graphql-typed-document-node/core": "^3.2.0",
+    "graphql": "^16.13.1",
+    "zod": "^4.3.6"
   },
   "lint-staged": {
     "*.{ts,json,md}": [

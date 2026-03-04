@@ -1,0 +1,12 @@
+fragment Viewer on User {
+  id
+  email
+  role
+  name
+}
+
+query GetUser($id: ID!) {
+  getUser(id: $id) {
+    ...Viewer
+  }
+}
