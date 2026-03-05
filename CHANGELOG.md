@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.1
+
+[compare changes](https://github.com/lewebsimple/graphql-codegen-registry/compare/v0.1.0...v0.1.1)
+
+### 🚀 Enhancements
+
+- Export graphql-codegen-registry/plugin + better project structure ([1639a10](https://github.com/lewebsimple/graphql-codegen-registry/commit/1639a10))
+
 ## v0.1.0
 
 [compare changes](https://github.com/lewebsimple/graphql-codegen-registry/compare/v0.0.2...v0.1.0)

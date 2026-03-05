@@ -1,6 +1,6 @@
 {
   "name": "graphql-codegen-registry",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GraphQL Codegen preset for type-safe operations registry validated with Zod.",
   "homepage": "https://github.com/lewebsimple/graphql-codegen-registry#readme",
   "bugs": {
