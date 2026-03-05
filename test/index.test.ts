@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import preset from "../src/index";
+import preset from "../src/preset";
 
 import { documents } from "./fixtures/documents";
 import { schema, schemaAst } from "./fixtures/schema";
@@ -72,7 +72,7 @@ describe("preset", () => {
     );
     expect(getUserOperationSection?.plugins).toEqual([
       {
-        "graphql-codegen-registry": {
+        "graphql-codegen-registry/plugin": {
           mode: "operation",
           name: "GetUser",
           operationType: "query",
@@ -85,7 +85,7 @@ describe("preset", () => {
     );
     expect(updateUserOperationSection?.plugins).toEqual([
       {
-        "graphql-codegen-registry": {
+        "graphql-codegen-registry/plugin": {
           mode: "operation",
           name: "UpdateUser",
           operationType: "mutation",
@@ -98,7 +98,7 @@ describe("preset", () => {
     );
     expect(userUpdatedOperationSection?.plugins).toEqual([
       {
-        "graphql-codegen-registry": {
+        "graphql-codegen-registry/plugin": {
           mode: "operation",
           name: "UserUpdated",
           operationType: "subscription",
@@ -111,7 +111,7 @@ describe("preset", () => {
     );
     expect(viewerFragmentSection?.plugins).toEqual([
       {
-        "graphql-codegen-registry": {
+        "graphql-codegen-registry/plugin": {
           mode: "fragment",
           name: "Viewer",
         },
@@ -121,7 +121,7 @@ describe("preset", () => {
     const registrySection = result.find((section) => section.filename === "generated/registry.ts");
     expect(registrySection?.plugins).toEqual([
       {
-        "graphql-codegen-registry": {
+        "graphql-codegen-registry/plugin": {
           mode: "registry",
         },
       },

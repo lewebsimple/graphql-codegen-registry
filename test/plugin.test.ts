@@ -2,7 +2,7 @@ import type { Types } from "@graphql-codegen/plugin-helpers";
 import { buildSchema, parse } from "graphql";
 import { describe, expect, it } from "vitest";
 
-import { registryPlugin } from "../src/plugin";
+import * as registryPlugin from "../src/plugin";
 
 const toDocuments = (source: string): Types.DocumentFile[] => {
   return [
@@ -14,6 +14,10 @@ const toDocuments = (source: string): Types.DocumentFile[] => {
 };
 
 describe("registryPlugin", () => {
+  it("exports plugin entrypoint in codegen-compatible shape", () => {
+    expect(typeof registryPlugin.plugin).toBe("function");
+  });
+
   it("generates operation and fragment document imports compatible with typed-document-node naming", () => {
     const schema = buildSchema(/* GraphQL */ `
       type User {

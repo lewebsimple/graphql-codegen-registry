@@ -8,7 +8,7 @@ import * as typescriptOperationsPlugin from "@graphql-codegen/typescript-operati
 import type { GraphQLSchema } from "graphql";
 import { Kind, isEnumType } from "graphql";
 
-import { registryPlugin } from "./plugin";
+import * as registryPlugin from "./plugin";
 
 type OperationType = "query" | "mutation" | "subscription";
 
@@ -92,7 +92,7 @@ const getEnumNames = (schema: GraphQLSchema | null): string[] => {
  * - `registry.ts` lazy loader index for generated modules
  * @returns GraphQL Codegen output preset implementation.
  */
-const preset: Types.OutputPreset = {
+export const preset: Types.OutputPreset = {
   /**
    * Builds all generate sections required by this preset.
    * @param options Codegen output options for the current generate target.
@@ -121,13 +121,14 @@ const preset: Types.OutputPreset = {
         typescript: typescriptPlugin,
         "typescript-operations": typescriptOperationsPlugin,
         "typed-document-node": typedDocumentNodePlugin,
-        "graphql-codegen-registry": registryPlugin,
+        "graphql-codegen-registry/plugin": registryPlugin,
       },
     };
 
     const outputDir = dirname(options.baseOutputDir);
 
     const sections: Types.GenerateOptions[] = [
+      // generated/types.ts
       {
         ...baseConfig,
         filename: join(outputDir, "types.ts"),
@@ -159,6 +160,8 @@ const preset: Types.OutputPreset = {
           },
         ],
       },
+
+      // generated/documents.ts
       {
         ...baseConfig,
         filename: join(outputDir, "documents.ts"),
@@ -175,10 +178,12 @@ const preset: Types.OutputPreset = {
           },
         ],
       },
+
+      // generated/registry.ts
       {
         ...baseConfig,
         filename: options.baseOutputDir,
-        plugins: [{ "graphql-codegen-registry": { mode: "registry" } }],
+        plugins: [{ "graphql-codegen-registry/plugin": { mode: "registry" } }],
       },
     ];
 
@@ -188,7 +193,7 @@ const preset: Types.OutputPreset = {
         filename: join(outputDir, "operations", `${operation.name}.ts`),
         plugins: [
           {
-            "graphql-codegen-registry": {
+            "graphql-codegen-registry/plugin": {
               mode: "operation",
               name: operation.name,
               operationType: operation.operationType,
@@ -204,7 +209,7 @@ const preset: Types.OutputPreset = {
         filename: join(outputDir, "fragments", `${fragmentName}.ts`),
         plugins: [
           {
-            "graphql-codegen-registry": {
+            "graphql-codegen-registry/plugin": {
               mode: "fragment",
               name: fragmentName,
             },
@@ -219,7 +224,7 @@ const preset: Types.OutputPreset = {
         filename: join(outputDir, "enums", `${enumName}.ts`),
         plugins: [
           {
-            "graphql-codegen-registry": {
+            "graphql-codegen-registry/plugin": {
               mode: "enum",
               name: enumName,
             },

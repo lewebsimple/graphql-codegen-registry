@@ -1,27 +1,22 @@
-import type { Types } from "@graphql-codegen/plugin-helpers";
-import type { CodegenPlugin } from "@graphql-codegen/plugin-helpers";
-import { pascalCase } from "es-toolkit/string";
-import type { GraphQLEnumType, GraphQLSchema } from "graphql";
-import { Kind, isEnumType, isInterfaceType, isObjectType } from "graphql";
+import type { PluginFunction, Types } from "@graphql-codegen/plugin-helpers";
+import type { GraphQLSchema } from "graphql";
+import { Kind, isInterfaceType, isObjectType } from "graphql";
 
+import {
+  getDefinition,
+  getDocumentExportIdentifier,
+  getEnumTypes,
+  getEnumValuesExpression,
+  getNamedArtifacts,
+  isOperationArtifact,
+  type OperationType,
+} from "./lib/artifacts";
 import {
   buildSelectionSchema,
   getEnumSchemaIdentifier,
   getFragmentSchemaIdentifier,
   getRawInputTypeExpressionFromTypeNode,
-} from "./zod";
-
-// ────────────────────────────────────────────────────────────────────────────────
-// Artifact types and utilities
-// ────────────────────────────────────────────────────────────────────────────────
-
-type OperationType = "query" | "mutation" | "subscription";
-type ArtifactKind = OperationType | "fragment";
-
-type ArtifactDescriptor = {
-  name: string;
-  kind: ArtifactKind;
-};
+} from "./lib/zod";
 
 type RegistryPluginConfig = {
   mode?: "registry" | "operation" | "fragment" | "enum";
@@ -29,116 +24,44 @@ type RegistryPluginConfig = {
   operationType?: OperationType;
 };
 
-const isOperationArtifact = (
-  artifact: ArtifactDescriptor,
-): artifact is ArtifactDescriptor & { kind: OperationType } => {
-  return (
-    artifact.kind === "query" || artifact.kind === "mutation" || artifact.kind === "subscription"
-  );
+export const plugin: PluginFunction<RegistryPluginConfig> = (schema, documents, config) => {
+  switch (config.mode ?? "registry") {
+    case "enum":
+      if (!config.name) {
+        throw new Error("Enum mode requires name.");
+      }
+      return getEnumModuleContent(schema, config.name);
+
+    case "fragment":
+      if (!config.name) {
+        throw new Error("Fragment mode requires name.");
+      }
+      return getFragmentModuleContent(schema, documents, config.name);
+
+    case "operation":
+      if (!config.operationType || !config.name) {
+        throw new Error("Operation mode requires both operationType and name.");
+      }
+      return getOperationModuleContent(schema, documents, config.operationType, config.name);
+
+    case "registry":
+      return getRegistryModuleContent(schema, documents);
+  }
 };
 
-const getNamedArtifacts = (documents: Types.DocumentFile[]): ArtifactDescriptor[] => {
-  const seen = new Set<string>();
-  const artifacts: ArtifactDescriptor[] = [];
+const getEnumModuleContent = (schema: GraphQLSchema, name: string): string => {
+  const enumType = getEnumTypes(schema).find((candidate) => candidate.name === name);
 
-  for (const documentFile of documents) {
-    if (!documentFile.document) {
-      continue;
-    }
-
-    for (const definition of documentFile.document.definitions) {
-      if (definition.kind === Kind.FRAGMENT_DEFINITION) {
-        const name = definition.name.value;
-        const key = `fragment:${name}`;
-
-        if (seen.has(key)) {
-          throw new Error(`Duplicate fragment name detected: ${name}`);
-        }
-
-        seen.add(key);
-        artifacts.push({ name, kind: "fragment" });
-      }
-
-      if (definition.kind === Kind.OPERATION_DEFINITION && definition.name) {
-        const name = definition.name.value;
-        const operation = definition.operation;
-
-        if (operation !== "query" && operation !== "mutation" && operation !== "subscription") {
-          continue;
-        }
-
-        const key = `${operation}:${name}`;
-
-        if (seen.has(key)) {
-          throw new Error(`Duplicate ${operation} name detected: ${name}`);
-        }
-
-        seen.add(key);
-        artifacts.push({ name, kind: operation });
-      }
-    }
+  if (!enumType) {
+    throw new Error(`Could not find named enum type for ${name}`);
   }
 
-  return artifacts;
-};
-
-const getDefinition = (documents: Types.DocumentFile[], kind: ArtifactKind, name: string) => {
-  for (const documentFile of documents) {
-    if (!documentFile.document) {
-      continue;
-    }
-
-    for (const definition of documentFile.document.definitions) {
-      if (
-        kind === "fragment" &&
-        definition.kind === Kind.FRAGMENT_DEFINITION &&
-        definition.name.value === name
-      ) {
-        return definition;
-      }
-
-      if (
-        (kind === "query" || kind === "mutation" || kind === "subscription") &&
-        definition.kind === Kind.OPERATION_DEFINITION &&
-        definition.operation === kind &&
-        definition.name?.value === name
-      ) {
-        return definition;
-      }
-    }
-  }
-
-  return null;
-};
-
-const getEnumTypes = (schema: GraphQLSchema): GraphQLEnumType[] => {
-  return Object.values(schema.getTypeMap())
-    .filter((type): type is GraphQLEnumType => isEnumType(type) && !type.name.startsWith("__"))
-    .sort((left, right) => left.name.localeCompare(right.name));
-};
-
-const getDocumentExportIdentifier = (
-  artifactType: "operation" | "fragment",
-  artifactName: string,
-): string => {
-  const suffix = artifactType === "operation" ? "Document" : "FragmentDoc";
-  return `${artifactName
-    .split("_")
-    .map((segment) => pascalCase(segment))
-    .join("_")}${suffix}`;
-};
-
-const getEnumValuesExpression = (enumType: GraphQLEnumType): string => {
-  const values = enumType
-    .getValues()
-    .map((value) => `'${value.value}'`)
-    .join(", ");
-
-  if (values.length === 0) {
-    return "z.never()";
-  }
-
-  return `z.enum([${values}])`;
+  return [
+    'import { z } from "zod";',
+    "",
+    `export const schema = ${getEnumValuesExpression(enumType)};`,
+    "",
+  ].join("\n");
 };
 
 const getEnumImportsForContent = (
@@ -152,6 +75,127 @@ const getEnumImportsForContent = (
       return `import { schema as ${getEnumSchemaIdentifier(enumType.name)} } from "${fromPath}/${enumType.name}";`;
     });
 };
+
+const getFragmentModuleContent = (
+  schema: GraphQLSchema,
+  documents: Types.DocumentFile[],
+  name: string,
+): string => {
+  const definition = getDefinition(documents, "fragment", name);
+
+  if (!definition || definition.kind !== Kind.FRAGMENT_DEFINITION) {
+    throw new Error(`Could not find named fragment definition for ${name}`);
+  }
+
+  const typeName = definition.typeCondition.name.value;
+  const type = schema.getType(typeName);
+
+  if (!type || (!isObjectType(type) && !isInterfaceType(type))) {
+    throw new Error(`Fragment ${name} references unsupported type: ${typeName}`);
+  }
+
+  const { schemaExpression, fragmentDependencies } = buildSelectionSchema(
+    schema,
+    definition.selectionSet,
+    type,
+  );
+  const enumImports = getEnumImportsForContent(schema, "../enums", schemaExpression);
+
+  const fragmentImportLines = [...fragmentDependencies]
+    .filter((dependencyName) => dependencyName !== name)
+    .sort((left, right) => left.localeCompare(right))
+    .map((fragmentName) => {
+      return `import { schema as ${getFragmentSchemaIdentifier(fragmentName)} } from "./${fragmentName}";`;
+    });
+  const fragmentDocumentIdentifier = getDocumentExportIdentifier("fragment", name);
+
+  return [
+    'import { z } from "zod";',
+    "",
+    `import { ${fragmentDocumentIdentifier} } from "../documents";`,
+    ...fragmentImportLines,
+    ...enumImports,
+    "",
+    `export const document = ${fragmentDocumentIdentifier};`,
+    `export const schema = ${schemaExpression};`,
+    "",
+  ].join("\n");
+};
+
+function getOperationModuleContent(
+  schema: GraphQLSchema,
+  documents: Types.DocumentFile[],
+  operationType: OperationType,
+  name: string,
+): string {
+  const definition = getDefinition(documents, operationType, name);
+
+  if (
+    !definition ||
+    definition.kind !== Kind.OPERATION_DEFINITION ||
+    definition.operation !== operationType
+  ) {
+    throw new Error(`Could not find named ${operationType} definition for ${name}`);
+  }
+
+  const operationRootType =
+    operationType === "query"
+      ? schema.getQueryType()
+      : operationType === "mutation"
+        ? schema.getMutationType()
+        : schema.getSubscriptionType();
+
+  if (!operationRootType) {
+    throw new Error(`${operationType} root type is required to generate operation module ${name}.`);
+  }
+
+  const { schemaExpression, fragmentDependencies } = buildSelectionSchema(
+    schema,
+    definition.selectionSet,
+    operationRootType,
+  );
+
+  const variableLines: string[] = [];
+
+  for (const variableDefinition of definition.variableDefinitions ?? []) {
+    const variableName = variableDefinition.variable.name.value;
+    const rawExpression = getRawInputTypeExpressionFromTypeNode(
+      schema,
+      variableDefinition.type,
+      variableDefinition.defaultValue ?? undefined,
+    );
+
+    variableLines.push(`  ${variableName}: ${rawExpression},`);
+  }
+
+  const variablesSchemaExpression = `z.object({\n${variableLines.join("\n")}\n})`;
+  const enumImports = getEnumImportsForContent(
+    schema,
+    "../enums",
+    `${schemaExpression}\n${variablesSchemaExpression}`,
+  );
+
+  const fragmentImportLines = [...fragmentDependencies]
+    .sort((left, right) => left.localeCompare(right))
+    .map((fragmentName) => {
+      return `import { schema as ${getFragmentSchemaIdentifier(fragmentName)} } from "../fragments/${fragmentName}";`;
+    });
+  const operationDocumentIdentifier = getDocumentExportIdentifier("operation", name);
+
+  return [
+    'import { z } from "zod";',
+    "",
+    `import { ${operationDocumentIdentifier} } from "../documents";`,
+    ...fragmentImportLines,
+    ...enumImports,
+    "",
+    `export const document = ${operationDocumentIdentifier};`,
+    `export const kind = "${operationType}" as const;`,
+    `export const schema = ${schemaExpression};`,
+    `export const variablesSchema = ${variablesSchemaExpression};`,
+    "",
+  ].join("\n");
+}
 
 const getRegistryModuleContent = (
   schema: GraphQLSchema,
@@ -235,172 +279,4 @@ const getRegistryModuleContent = (
     `export const loadFragment = <T extends FragmentName>(name: T) => registry.fragments[name].load();`,
     `export const loadEnum = <T extends EnumName>(name: T) => registry.enums[name].load();`,
   ].join("\n");
-};
-
-const getOperationModuleContent = (
-  schema: GraphQLSchema,
-  documents: Types.DocumentFile[],
-  operationType: OperationType,
-  name: string,
-): string => {
-  const definition = getDefinition(documents, operationType, name);
-
-  if (
-    !definition ||
-    definition.kind !== Kind.OPERATION_DEFINITION ||
-    definition.operation !== operationType
-  ) {
-    throw new Error(`Could not find named ${operationType} definition for ${name}`);
-  }
-
-  const operationRootType =
-    operationType === "query"
-      ? schema.getQueryType()
-      : operationType === "mutation"
-        ? schema.getMutationType()
-        : schema.getSubscriptionType();
-
-  if (!operationRootType) {
-    throw new Error(`${operationType} root type is required to generate operation module ${name}.`);
-  }
-
-  const { schemaExpression, fragmentDependencies } = buildSelectionSchema(
-    schema,
-    definition.selectionSet,
-    operationRootType,
-  );
-
-  const variableLines: string[] = [];
-
-  for (const variableDefinition of definition.variableDefinitions ?? []) {
-    const variableName = variableDefinition.variable.name.value;
-    const rawExpression = getRawInputTypeExpressionFromTypeNode(
-      schema,
-      variableDefinition.type,
-      variableDefinition.defaultValue ?? undefined,
-    );
-
-    variableLines.push(`  ${variableName}: ${rawExpression},`);
-  }
-
-  const variablesSchemaExpression = `z.object({\n${variableLines.join("\n")}\n})`;
-  const enumImports = getEnumImportsForContent(
-    schema,
-    "../enums",
-    `${schemaExpression}\n${variablesSchemaExpression}`,
-  );
-
-  const fragmentImportLines = [...fragmentDependencies]
-    .sort((left, right) => left.localeCompare(right))
-    .map((fragmentName) => {
-      return `import { schema as ${getFragmentSchemaIdentifier(fragmentName)} } from "../fragments/${fragmentName}";`;
-    });
-  const operationDocumentIdentifier = getDocumentExportIdentifier("operation", name);
-
-  return [
-    'import { z } from "zod";',
-    "",
-    `import { ${operationDocumentIdentifier} } from "../documents";`,
-    ...fragmentImportLines,
-    ...enumImports,
-    "",
-    `export const document = ${operationDocumentIdentifier};`,
-    `export const kind = "${operationType}" as const;`,
-    `export const schema = ${schemaExpression};`,
-    `export const variablesSchema = ${variablesSchemaExpression};`,
-    "",
-  ].join("\n");
-};
-
-const getFragmentModuleContent = (
-  schema: GraphQLSchema,
-  documents: Types.DocumentFile[],
-  name: string,
-): string => {
-  const definition = getDefinition(documents, "fragment", name);
-
-  if (!definition || definition.kind !== Kind.FRAGMENT_DEFINITION) {
-    throw new Error(`Could not find named fragment definition for ${name}`);
-  }
-
-  const typeName = definition.typeCondition.name.value;
-  const type = schema.getType(typeName);
-
-  if (!type || (!isObjectType(type) && !isInterfaceType(type))) {
-    throw new Error(`Fragment ${name} references unsupported type: ${typeName}`);
-  }
-
-  const { schemaExpression, fragmentDependencies } = buildSelectionSchema(
-    schema,
-    definition.selectionSet,
-    type,
-  );
-  const enumImports = getEnumImportsForContent(schema, "../enums", schemaExpression);
-
-  const fragmentImportLines = [...fragmentDependencies]
-    .filter((dependencyName) => dependencyName !== name)
-    .sort((left, right) => left.localeCompare(right))
-    .map((fragmentName) => {
-      return `import { schema as ${getFragmentSchemaIdentifier(fragmentName)} } from "./${fragmentName}";`;
-    });
-  const fragmentDocumentIdentifier = getDocumentExportIdentifier("fragment", name);
-
-  return [
-    'import { z } from "zod";',
-    "",
-    `import { ${fragmentDocumentIdentifier} } from "../documents";`,
-    ...fragmentImportLines,
-    ...enumImports,
-    "",
-    `export const document = ${fragmentDocumentIdentifier};`,
-    `export const schema = ${schemaExpression};`,
-    "",
-  ].join("\n");
-};
-
-const getEnumModuleContent = (schema: GraphQLSchema, name: string): string => {
-  const enumType = getEnumTypes(schema).find((candidate) => candidate.name === name);
-
-  if (!enumType) {
-    throw new Error(`Could not find named enum type for ${name}`);
-  }
-
-  return [
-    'import { z } from "zod";',
-    "",
-    `export const schema = ${getEnumValuesExpression(enumType)};`,
-    "",
-  ].join("\n");
-};
-
-export const registryPlugin: CodegenPlugin<RegistryPluginConfig> = {
-  plugin: (schema, documents, config) => {
-    const mode = config.mode ?? "registry";
-
-    if (mode === "operation") {
-      if (!config.operationType || !config.name) {
-        throw new Error("Operation mode requires both operationType and name.");
-      }
-
-      return getOperationModuleContent(schema, documents, config.operationType, config.name);
-    }
-
-    if (mode === "fragment") {
-      if (!config.name) {
-        throw new Error("Fragment mode requires name.");
-      }
-
-      return getFragmentModuleContent(schema, documents, config.name);
-    }
-
-    if (mode === "enum") {
-      if (!config.name) {
-        throw new Error("Enum mode requires name.");
-      }
-
-      return getEnumModuleContent(schema, config.name);
-    }
-
-    return getRegistryModuleContent(schema, documents);
-  },
 };

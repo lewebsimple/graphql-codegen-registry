@@ -8,7 +8,10 @@ const external = [
 ];
 
 export default defineConfig({
-  input: "src/index.ts",
+  input: {
+    preset: "src/preset.ts",
+    plugin: "src/plugin.ts",
+  },
   output: {
     cleanDir: true,
     chunkFileNames: "chunks/[name].js",
