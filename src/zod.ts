@@ -1,4 +1,3 @@
-import { camelCase } from "es-toolkit/string";
 import type {
   GraphQLEnumType,
   GraphQLInputObjectType,
@@ -8,6 +7,7 @@ import type {
   GraphQLOutputType,
   GraphQLScalarType,
   GraphQLSchema,
+  GraphQLUnionType,
   SelectionSetNode,
   TypeNode,
   ValueNode,
@@ -22,6 +22,7 @@ import {
   isNonNullType,
   isObjectType,
   isScalarType,
+  isUnionType,
   valueFromASTUntyped,
 } from "graphql";
 
@@ -59,8 +60,16 @@ const getEnumValuesExpression = (enumType: GraphQLEnumType): string => {
   return `z.enum([${values}])`;
 };
 
-const getEnumSchemaConstName = (enumName: string): string => {
-  return `${camelCase(enumName)}EnumSchema`;
+export const getEnumSchemaIdentifier = (enumName: string): string => {
+  return getSchemaIdentifier(enumName, "EnumSchema");
+};
+
+export const getFragmentSchemaIdentifier = (fragmentName: string): string => {
+  return getSchemaIdentifier(fragmentName, "FragmentSchema");
+};
+
+const getSchemaIdentifier = (name: string, suffix: "EnumSchema" | "FragmentSchema"): string => {
+  return `gql${name}${suffix}`;
 };
 
 /**
@@ -74,7 +83,7 @@ export const getEnumSchemaDefinitions = (schema: GraphQLSchema): string[] => {
   );
 
   return enumTypes.map((enumType) => {
-    const schemaConstName = getEnumSchemaConstName(enumType.name);
+    const schemaConstName = getEnumSchemaIdentifier(enumType.name);
     const enumValuesExpression = getEnumValuesExpression(enumType);
 
     return [
@@ -100,7 +109,7 @@ const getNamedTypeExpression = (
   }
 
   if (isEnumType(namedType)) {
-    return getEnumSchemaConstName(namedType.name);
+    return getEnumSchemaIdentifier(namedType.name);
   }
 
   const fields = namedType.getFields();
@@ -231,7 +240,10 @@ const getNonNullableOutputTypeExpression = (
 
   const namedType = getNamedType(type);
 
-  if (nestedObjectExpression && (isObjectType(namedType) || isInterfaceType(namedType))) {
+  if (
+    nestedObjectExpression &&
+    (isObjectType(namedType) || isInterfaceType(namedType) || isUnionType(namedType))
+  ) {
     return nestedObjectExpression;
   }
 
@@ -240,7 +252,7 @@ const getNonNullableOutputTypeExpression = (
   }
 
   if (isEnumType(namedType)) {
-    return getEnumSchemaConstName(namedType.name);
+    return getEnumSchemaIdentifier(namedType.name);
   }
 
   return "z.unknown()";
@@ -263,6 +275,96 @@ const getOutputTypeExpression = (
   return `${getNonNullableOutputTypeExpression(type, nestedObjectExpression)}.nullable()`;
 };
 
+type SelectionSchemaBuildResult = {
+  schemaExpression: string;
+  fragmentDependencies: Set<string>;
+};
+
+const addFragmentDependencies = (target: Set<string>, source: Set<string>): void => {
+  for (const fragmentDependency of source) {
+    target.add(fragmentDependency);
+  }
+};
+
+const buildUnionSelectionSchema = (
+  schema: GraphQLSchema,
+  selectionSet: SelectionSetNode,
+  parentType: GraphQLUnionType,
+): SelectionSchemaBuildResult => {
+  const possibleTypesByName = new Map(parentType.getTypes().map((type) => [type.name, type]));
+  const variantExpressions: string[] = [];
+  const fragmentDependencies = new Set<string>();
+  let includesTypenameField = false;
+
+  for (const selection of selectionSet.selections) {
+    if (selection.kind === Kind.FIELD) {
+      if (selection.name.value === "__typename") {
+        includesTypenameField = true;
+      }
+
+      continue;
+    }
+
+    if (selection.kind === Kind.FRAGMENT_SPREAD) {
+      const fragmentName = selection.name.value;
+      fragmentDependencies.add(fragmentName);
+      variantExpressions.push(getFragmentSchemaIdentifier(fragmentName));
+      continue;
+    }
+
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const inlineTypeName = selection.typeCondition?.name.value;
+
+      if (!inlineTypeName) {
+        for (const possibleType of possibleTypesByName.values()) {
+          const nested = buildSelectionSchema(schema, selection.selectionSet, possibleType);
+          variantExpressions.push(nested.schemaExpression);
+          addFragmentDependencies(fragmentDependencies, nested.fragmentDependencies);
+        }
+
+        continue;
+      }
+
+      const inlineType = possibleTypesByName.get(inlineTypeName);
+      if (!inlineType) {
+        continue;
+      }
+
+      const nested = buildSelectionSchema(schema, selection.selectionSet, inlineType);
+      variantExpressions.push(nested.schemaExpression);
+      addFragmentDependencies(fragmentDependencies, nested.fragmentDependencies);
+    }
+  }
+
+  if (includesTypenameField) {
+    const typeLiterals = parentType
+      .getTypes()
+      .map((type) => `'${type.name}'`)
+      .join(", ");
+    variantExpressions.push(`z.object({\n  __typename: z.enum([${typeLiterals}]),\n})`);
+  }
+
+  const uniqueVariantExpressions = [...new Set(variantExpressions)];
+  if (uniqueVariantExpressions.length === 0) {
+    return {
+      schemaExpression: "z.unknown()",
+      fragmentDependencies,
+    };
+  }
+
+  if (uniqueVariantExpressions.length === 1) {
+    return {
+      schemaExpression: uniqueVariantExpressions[0],
+      fragmentDependencies,
+    };
+  }
+
+  return {
+    schemaExpression: `z.union([${uniqueVariantExpressions.join(", ")}])`,
+    fragmentDependencies,
+  };
+};
+
 /**
  * Builds a Zod object schema expression from a GraphQL selection set.
  * @param schema Executable GraphQL schema.
@@ -274,7 +376,7 @@ export const buildSelectionSchema = (
   schema: GraphQLSchema,
   selectionSet: SelectionSetNode,
   parentType: GraphQLObjectType | GraphQLInterfaceType,
-): { schemaExpression: string; fragmentDependencies: Set<string> } => {
+): SelectionSchemaBuildResult => {
   const fieldsMap = parentType.getFields();
   const objectEntries: string[] = [];
   const extensions: string[] = [];
@@ -299,9 +401,11 @@ export const buildSelectionSchema = (
       ) {
         const nested = buildSelectionSchema(schema, selection.selectionSet, namedFieldType);
         nestedSchemaExpression = nested.schemaExpression;
-        for (const fragmentDependency of nested.fragmentDependencies) {
-          fragmentDependencies.add(fragmentDependency);
-        }
+        addFragmentDependencies(fragmentDependencies, nested.fragmentDependencies);
+      } else if (selection.selectionSet && isUnionType(namedFieldType)) {
+        const nested = buildUnionSelectionSchema(schema, selection.selectionSet, namedFieldType);
+        nestedSchemaExpression = nested.schemaExpression;
+        addFragmentDependencies(fragmentDependencies, nested.fragmentDependencies);
       }
 
       const rawExpression = getOutputTypeExpression(fieldDefinition.type, nestedSchemaExpression);
@@ -313,7 +417,7 @@ export const buildSelectionSchema = (
     if (selection.kind === Kind.FRAGMENT_SPREAD) {
       const fragmentName = selection.name.value;
       fragmentDependencies.add(fragmentName);
-      extensions.push(`${camelCase(fragmentName)}FragmentSchema`);
+      extensions.push(getFragmentSchemaIdentifier(fragmentName));
       continue;
     }
 
@@ -327,18 +431,44 @@ export const buildSelectionSchema = (
       ) {
         const nested = buildSelectionSchema(schema, selection.selectionSet, inlineParentType);
         extensions.push(nested.schemaExpression);
-        for (const fragmentDependency of nested.fragmentDependencies) {
-          fragmentDependencies.add(fragmentDependency);
-        }
+        addFragmentDependencies(fragmentDependencies, nested.fragmentDependencies);
       }
     }
   }
 
+  const uniqueExtensions = [...new Set(extensions)];
   const objectBody = objectEntries.length > 0 ? `\n${objectEntries.join("\n")}\n` : "";
-  let schemaExpression = `z.object({${objectBody}})`;
+  const baseSchemaExpression = `z.object({${objectBody}})`;
+  let schemaExpression = baseSchemaExpression;
 
-  for (const extensionExpression of extensions) {
-    schemaExpression = `${schemaExpression}.extend((${extensionExpression}).shape)`;
+  if (uniqueExtensions.length > 0 && isInterfaceType(parentType)) {
+    const interfaceVariants = [
+      ...(objectEntries.length > 0 ? [baseSchemaExpression] : []),
+      ...uniqueExtensions.map((extensionExpression) => {
+        if (objectEntries.length === 0) {
+          return extensionExpression;
+        }
+
+        return `z.intersection(${baseSchemaExpression}, ${extensionExpression})`;
+      }),
+    ];
+    const uniqueInterfaceVariants = [...new Set(interfaceVariants)];
+    schemaExpression =
+      uniqueInterfaceVariants.length === 1
+        ? uniqueInterfaceVariants[0]
+        : `z.union([${uniqueInterfaceVariants.join(", ")}])`;
+  } else {
+    if (objectEntries.length === 0 && uniqueExtensions.length > 0) {
+      schemaExpression = uniqueExtensions[0];
+
+      for (const extensionExpression of uniqueExtensions.slice(1)) {
+        schemaExpression = `z.intersection(${schemaExpression}, ${extensionExpression})`;
+      }
+    } else {
+      for (const extensionExpression of uniqueExtensions) {
+        schemaExpression = `z.intersection(${schemaExpression}, ${extensionExpression})`;
+      }
+    }
   }
 
   return {

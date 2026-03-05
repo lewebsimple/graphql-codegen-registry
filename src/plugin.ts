@@ -1,10 +1,15 @@
 import type { Types } from "@graphql-codegen/plugin-helpers";
 import type { CodegenPlugin } from "@graphql-codegen/plugin-helpers";
-import { camelCase } from "es-toolkit/string";
+import { pascalCase } from "es-toolkit/string";
 import type { GraphQLEnumType, GraphQLSchema } from "graphql";
 import { Kind, isEnumType, isInterfaceType, isObjectType } from "graphql";
 
-import { buildSelectionSchema, getRawInputTypeExpressionFromTypeNode } from "./lib/zod";
+import {
+  buildSelectionSchema,
+  getEnumSchemaIdentifier,
+  getFragmentSchemaIdentifier,
+  getRawInputTypeExpressionFromTypeNode,
+} from "./zod";
 
 // ────────────────────────────────────────────────────────────────────────────────
 // Artifact types and utilities
@@ -112,8 +117,15 @@ const getEnumTypes = (schema: GraphQLSchema): GraphQLEnumType[] => {
     .sort((left, right) => left.name.localeCompare(right.name));
 };
 
-const getEnumSchemaIdentifier = (enumName: string): string => {
-  return `${camelCase(enumName)}EnumSchema`;
+const getDocumentExportIdentifier = (
+  artifactType: "operation" | "fragment",
+  artifactName: string,
+): string => {
+  const suffix = artifactType === "operation" ? "Document" : "FragmentDoc";
+  return `${artifactName
+    .split("_")
+    .map((segment) => pascalCase(segment))
+    .join("_")}${suffix}`;
 };
 
 const getEnumValuesExpression = (enumType: GraphQLEnumType): string => {
@@ -281,17 +293,18 @@ const getOperationModuleContent = (
   const fragmentImportLines = [...fragmentDependencies]
     .sort((left, right) => left.localeCompare(right))
     .map((fragmentName) => {
-      return `import { schema as ${camelCase(fragmentName)}FragmentSchema } from "../fragments/${fragmentName}";`;
+      return `import { schema as ${getFragmentSchemaIdentifier(fragmentName)} } from "../fragments/${fragmentName}";`;
     });
+  const operationDocumentIdentifier = getDocumentExportIdentifier("operation", name);
 
   return [
     'import { z } from "zod";',
     "",
-    `import { ${name}Document } from "../documents";`,
+    `import { ${operationDocumentIdentifier} } from "../documents";`,
     ...fragmentImportLines,
     ...enumImports,
     "",
-    `export const document = ${name}Document;`,
+    `export const document = ${operationDocumentIdentifier};`,
     `export const kind = "${operationType}" as const;`,
     `export const schema = ${schemaExpression};`,
     `export const variablesSchema = ${variablesSchemaExpression};`,
@@ -328,17 +341,18 @@ const getFragmentModuleContent = (
     .filter((dependencyName) => dependencyName !== name)
     .sort((left, right) => left.localeCompare(right))
     .map((fragmentName) => {
-      return `import { schema as ${camelCase(fragmentName)}FragmentSchema } from "./${fragmentName}";`;
+      return `import { schema as ${getFragmentSchemaIdentifier(fragmentName)} } from "./${fragmentName}";`;
     });
+  const fragmentDocumentIdentifier = getDocumentExportIdentifier("fragment", name);
 
   return [
     'import { z } from "zod";',
     "",
-    `import { ${name}FragmentDoc } from "../documents";`,
+    `import { ${fragmentDocumentIdentifier} } from "../documents";`,
     ...fragmentImportLines,
     ...enumImports,
     "",
-    `export const document = ${name}FragmentDoc;`,
+    `export const document = ${fragmentDocumentIdentifier};`,
     `export const schema = ${schemaExpression};`,
     "",
   ].join("\n");

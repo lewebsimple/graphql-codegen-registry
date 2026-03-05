@@ -1,1 +1,1 @@
-# GraphQL Codegen Zod
+# GraphQL Codegen Registry
